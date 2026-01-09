@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.jpmc.midascore.entity.UserRecord;
 import com.jpmc.midascore.foundation.Balance;
 import com.jpmc.midascore.repository.UserRepository;
+// Controller to handle balance inquiries
 
 @RestController
 public class BalanceController {
@@ -29,3 +30,4 @@ public class BalanceController {
         return new Balance(user.getBalance());
     }
 }
+// End of BalanceController.java
