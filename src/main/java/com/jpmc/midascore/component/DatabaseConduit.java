@@ -1,41 +1,68 @@
 package com.jpmc.midascore.component;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.stereotype.Component;
+
+import com.jpmc.midascore.entity.TransactionRecord;
 import com.jpmc.midascore.entity.UserRecord;
 import com.jpmc.midascore.foundation.Transaction;
+import com.jpmc.midascore.repository.TransactionRepository;
 import com.jpmc.midascore.repository.UserRepository;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.kafka.core.KafkaTemplate;
-import org.springframework.stereotype.Component;
 
 @Component
 public class DatabaseConduit {
 
     private final UserRepository userRepository;
-    private final KafkaTemplate<String, String> kafkaTemplate;
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final TransactionRepository transactionRepository;
 
-    @Value("${general.kafka-topic}")
-    private String topic;
-
-    public DatabaseConduit(
-            UserRepository userRepository,
-            KafkaTemplate<String, String> kafkaTemplate
-    ) {
+    public DatabaseConduit(UserRepository userRepository,
+                           TransactionRepository transactionRepository) {
         this.userRepository = userRepository;
-        this.kafkaTemplate = kafkaTemplate;
+        this.transactionRepository = transactionRepository;
     }
 
+    // ✅ REQUIRED by test scaffolding (DO NOT REMOVE)
     public void save(UserRecord userRecord) {
         userRepository.save(userRecord);
     }
 
-    public void publish(Transaction transaction) {
-        try {
-            String json = objectMapper.writeValueAsString(transaction);
-            kafkaTemplate.send(topic, json);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to publish transaction to Kafka", e);
+    // ✅ Task 3 logic
+    public void process(Transaction transaction) {
+
+        UserRecord sender =
+                userRepository.findById(transaction.getSenderId());
+        UserRecord recipient =
+                userRepository.findById(transaction.getRecipientId());
+
+        // validate users
+        if (sender == null || recipient == null) {
+            return;
         }
+
+        double amount = transaction.getAmount();
+
+        // validate balance
+        if (sender.getBalance() < amount) {
+            return;
+        }
+
+        // update balances (balance is float)
+        sender.setBalance((float) (sender.getBalance() - amount));
+        recipient.setBalance((float) (recipient.getBalance() + amount));
+
+        userRepository.save(sender);
+        userRepository.save(recipient);
+
+        // record transaction
+        TransactionRecord record =
+                new TransactionRecord(amount, sender, recipient);
+
+        transactionRepository.save(record);
+        if ("waldorf".equals(sender.getName())) {
+    System.out.println("WALDORF BALANCE = " + sender.getBalance());
+}
+if ("waldorf".equals(recipient.getName())) {
+    System.out.println("WALDORF BALANCE = " + recipient.getBalance());
+}
+
     }
 }
